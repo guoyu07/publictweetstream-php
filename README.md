@@ -4,31 +4,15 @@ Playing around with streaming API and React in PHP.
 
 ## Usage
 
-    <?php
+Download and install composer:
 
-    require __DIR__ . '/../vendor/autoload.php';
+    curl -s https://getcomposer.org/installer | php
 
-    use Symfony\Component\Config\FileLocator;
-    use Symfony\Component\Config\Loader\FileLoader;
-    use Symfony\Component\Yaml\Yaml;
+Install vendors:
 
-    $configDirectories = array(__DIR__ . '/../config');
+    php composer.phar install
 
-    $locator = new FileLocator($configDirectories);
-    try {
-        $yamlConfig = $locator->locate('public-tweet-stream.prod.yml', null, true);
-    }
-    catch (InvalidArgumentException $e) {
-        try {
-            $yamlConfig = $locator->locate('public-tweet-stream.yml', null, true);
-        }
-        catch (InvalidArgumentException $e) {
-            throw new Exception('Config not found');
-        }
-    }
-
-    $loader = new PublicTweetStream\SettingsLoader($locator);
-    $config = $loader->import($yamlConfig);
+Example code
 
     $publicTweetStream = new \PublicTweetStream\PublicTweetStream($config);
     $publicTweetStream->on('tweet', function ($tweet) {
