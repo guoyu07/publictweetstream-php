@@ -1,0 +1,7 @@
+dns:
+    server: 8.8.8.8
+    cached: true
+twitter:
+    username: [username]
+    password: [password]
+    search: [search term or terms]

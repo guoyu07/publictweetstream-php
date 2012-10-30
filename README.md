@@ -16,11 +16,11 @@ Playing around with streaming API and React in PHP.
 
     $locator = new FileLocator($configDirectories);
     try {
-        $yamlConfig = $locator->locate('public-tweet-stream.yml', null, true);
+        $yamlConfig = $locator->locate('public-tweet-stream.prod.yml', null, true);
     }
     catch (InvalidArgumentException $e) {
         try {
-            $yamlConfig = $locator->locate('public-tweet-stream.dist.yml', null, true);
+            $yamlConfig = $locator->locate('public-tweet-stream.yml', null, true);
         }
         catch (InvalidArgumentException $e) {
             throw new Exception('Config not found');
