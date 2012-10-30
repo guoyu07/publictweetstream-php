@@ -1,0 +1,12 @@
+{
+    "require": {
+        "react/react": "0.2.*",
+        "symfony/config": "2.1.*",
+        "symfony/yaml": "2.1.x"
+    },
+    "autoload": {
+        "psr-0": {
+            "PublicTweetStream": "src/"
+        }
+    }
+}
