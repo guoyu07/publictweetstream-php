@@ -4,4 +4,6 @@ dns:
 twitter:
     username: [username]
     password: [password]
-    search: [search term or terms]
+    search:
+        - "#[hash tag]"
+
