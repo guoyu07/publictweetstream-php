@@ -127,31 +127,35 @@ class PublicTweetStream extends EventEmitter
             'Connection-type' => 'Close'
         ));
         $request->write($data);
+
+        // adding support for earlier versions of PHP - this is not available in closure before 5.4
+        $that = $this;
+
         /** @var $response \React\HttpClient\Response */
-        $request->on('response', function ($response) {
-            $response->on('data', function ($data) {
+        $request->on('response', function ($response) use ($that) {
+            $response->on('data', function ($data) use ($that) {
                 if ('' === trim($data)) {
-                    $this->emit('empty data');
+                    $that->emit('empty data');
                     return;
                 }
 
                 $tweet = json_decode($data);
 
                 if (null === $tweet) {
-                    $this->emit('invalid data', array('data' => $data));
+                    $that->emit('invalid data', array('data' => $data));
                     return;
                 }
 
                 if (isset($tweet->limit)) {
-                    $this->emit('limit', array('limit' => $tweet));
+                    $that->emit('limit', array('limit' => $tweet));
                     return;
                 }
 
-                $this->emit('tweet', array('tweet' => $tweet));
+                $that->emit('tweet', array('tweet' => $tweet));
             });
         });
-        $request->on('end', function ($error) {
-            $this->emit('error', array('error' => $error));
+        $request->on('end', function ($error) use ($that) {
+            $that->emit('error', array('error' => $error));
         });
 
         $this->_request = $request;
