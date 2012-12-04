@@ -151,6 +151,7 @@ class PublicTweetStream extends EventEmitter
                     return;
                 }
 
+                // @todo: update this to process tweet as HTML if required by config
                 $that->emit('tweet', array('tweet' => $tweet));
             });
         });
