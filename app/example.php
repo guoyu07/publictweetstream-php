@@ -11,12 +11,10 @@ $configDirectories = array(__DIR__ . '/../config');
 $locator = new FileLocator($configDirectories);
 try {
     $yamlConfig = $locator->locate('public-tweet-stream.prod.yml', null, true);
-}
-catch (InvalidArgumentException $e) {
+} catch (InvalidArgumentException $e) {
     try {
         $yamlConfig = $locator->locate('public-tweet-stream.yml', null, true);
-    }
-    catch (InvalidArgumentException $e) {
+    } catch (InvalidArgumentException $e) {
         throw new Exception('Config not found');
     }
 }
@@ -26,6 +24,10 @@ $config = $loader->import($yamlConfig);
 
 $publicTweetStream = new \PublicTweetStream\PublicTweetStream($config);
 $publicTweetStream->on('tweet', function ($tweet) {
+    if (!isset($tweet->text)) {
+        return;
+    }
+
     echo '@' . $tweet->user->screen_name . ': ' . $tweet->text . PHP_EOL;
 });
 

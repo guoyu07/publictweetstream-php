@@ -6,35 +6,52 @@ use Evenement\EventEmitter2 as EventEmitter,
     React\HttpClient\Client,
     React\HttpClient\Request,
     React\EventLoop\StreamSelectLoop,
-    Exception,
     React\EventLoop\Factory as EventLoopFactory,
     React\Dns\Resolver\Factory as DnsResolverFactory,
     React\HttpClient\Factory as HttpClientFactory;
 
 /**
  * Public tweets streaming API connection
+ *
+ * @author Mark Wilson <mark@89allport.co.uk>
  */
 class PublicTweetStream extends EventEmitter
 {
-    /**
-     * @var array
-     */
-    protected $_config;
-    /**
-     * @var Client
-     */
-    protected $_client;
-    /**
-     * @var StreamSelectLoop
-     */
-    protected $_loop;
-    /**
-     * @var Request
-     */
-    protected $_request;
+    const HTTP_METHOD = 'POST';
+    const FILTER_URL= 'https://stream.twitter.com/1.1/statuses/filter.json';
 
     /**
-     * @param array $config
+     * Configuration
+     *
+     * @var array
+     */
+    private $config;
+
+    /**
+     * HTTP client
+     *
+     * @var Client
+     */
+    private $client;
+
+    /**
+     * Event loop
+     *
+     * @var StreamSelectLoop
+     */
+    private $loop;
+
+    /**
+     * HTTP request
+     *
+     * @var Request
+     */
+    private $request;
+
+    /**
+     * Constructor
+     *
+     * @param array $config Configuration
      */
     public function __construct($config)
     {
@@ -47,21 +64,28 @@ class PublicTweetStream extends EventEmitter
 
     /**
      * Initialise streaming
+     *
+     * @return void
      */
     public function startStream()
     {
-        $this->_request->end();
-        $this->_loop->run();
+        $this->request->end();
+        $this->loop->run();
     }
 
     /**
-     * @param $config
-     * @throws Exception
+     * Parse configuration
+     *
+     * @param array $config Configuration
+     *
+     * @throws \Exception If invalid configuration is provided
+     *
+     * @return void
      */
     protected function parseConfig($config)
     {
         if (!isset($config['dns'])) {
-            throw new Exception('No DNS settings');
+            throw new \Exception('No DNS settings');
         }
 
         if (!isset($config['dns']['server'])) {
@@ -72,93 +96,135 @@ class PublicTweetStream extends EventEmitter
             $config['dns']['cached'] = true;
         }
 
-        if (!isset($config['twitter'], $config['twitter']['username'], $config['twitter']['password'])) {
-            throw new Exception('No Twitter settings');
+        if (!isset($config['twitter'], $config['twitter']['consumer_key'], $config['twitter']['consumer_secret'], $config['twitter']['access_token'], $config['twitter']['access_token_secret'])) {
+            throw new \Exception('No Twitter settings');
         }
 
         if (!isset($config['twitter']['search'])) {
-            throw new Exception('No search term provided');
-        }
-        else if (is_array($config['twitter']['search'])) {
-            $search = $config['twitter']['search'];
-            $search = array_map('urlencode', $search);
-            $search = implode(',', $search);
-            $config['twitter']['search'] = $search;
-        }
-        else if (is_string($config['twitter']['search'])) {
-            $config['twitter']['search'] = urlencode($config['twitter']['search']);
+            throw new \Exception('No search term provided');
+        } elseif (is_string($config['twitter']['search'])) {
+            $config['twitter']['search'] = array($config['twitter']['search']);
         }
 
-        $this->_config = $config;
+        $this->config = $config;
     }
 
     /**
      * Initialise client connection
+     *
+     * @return void
      */
     protected function initialiseClient()
     {
-        $this->_loop = EventLoopFactory::create();
+        $this->loop = EventLoopFactory::create();
 
         $dnsResolverFactory = new DnsResolverFactory();
-        if ($this->_config['dns']['cached']) {
-            $dnsResolver = $dnsResolverFactory->createCached($this->_config['dns']['server'], $this->_loop);
+        if ($this->config['dns']['cached']) {
+            $dnsResolver = $dnsResolverFactory->createCached($this->config['dns']['server'], $this->loop);
         }
         else {
-            $dnsResolver = $dnsResolverFactory->create($this->_config['dns']['server'], $this->_loop);
+            $dnsResolver = $dnsResolverFactory->create($this->config['dns']['server'], $this->loop);
         }
 
         $factory = new HttpClientFactory();
-        $client = $factory->create($this->_loop, $dnsResolver);
+        $client = $factory->create($this->loop, $dnsResolver);
 
-        $this->_client = $client;
+        $this->client = $client;
     }
 
     /**
      * Initialise request on client
+     *
+     * @return void
      */
     protected function initialiseRequest()
     {
-        $data = 'track=' . $this->_config['twitter']['search'];
+        $postData = array();
+        $params   = array(
+            'track' => $this->config['twitter']['search']
+        );
 
-        $request = $this->_client->request('POST', 'https://stream.twitter.com/1.1/statuses/filter.json', array(
-            'Authorization' => 'Basic ' . base64_encode($this->_config['twitter']['username'] . ':' . $this->_config['twitter']['password']),
-            'Content-type' => 'application/x-www-form-urlencoded',
-            'Content-length' => strlen($data),
-            'Connection-type' => 'Close'
-        ));
-        $request->write($data);
+        foreach ($params as $key => $value) {
+            if (is_array($value)) {
+                $params[$key] = implode(',', $value);
 
-        // adding support for earlier versions of PHP - this is not available in closure before 5.4
-        $that = $this;
+                $urlEncodedValues = array_map('urlencode', $value);
+                $postData[] = $key . '=' . implode(',', $urlEncodedValues);
+            } else {
+                $postData[] = $key . '=' . urlencode($value);
+            }
+        }
 
-        /** @var $response \React\HttpClient\Response */
-        $request->on('response', function ($response) use ($that) {
-            $response->on('data', function ($data) use ($that) {
+        $headers = array(
+            'Authorization' => $this->generateHeader($params),
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'Content-Length' => strlen(implode('&', $postData)),
+            'Connection-Type' => 'Close'
+        );
+
+        $request = $this->client->request(self::HTTP_METHOD, self::FILTER_URL, $headers);
+
+        // adding support for earlier versions of PHP - $this is not available in closure before 5.4
+        $scope = $this;
+
+        $request->on('response', function ($response) use ($scope) {
+            if ($response->getCode() != 200) {
+                die($response->getCode() . ': ' . $response->getReasonPhrase() . PHP_EOL);
+            }
+
+            $response->on('data', function ($data) use ($scope) {
                 if ('' === trim($data)) {
-                    $that->emit('empty data');
+                    $scope->emit('empty data');
                     return;
                 }
 
                 $tweet = json_decode($data);
 
                 if (null === $tweet) {
-                    $that->emit('invalid data', array('data' => $data));
+                    $scope->emit('invalid data', array('data' => $data));
                     return;
                 }
 
                 if (isset($tweet->limit)) {
-                    $that->emit('limit', array('limit' => $tweet));
+                    $scope->emit('limit', array('limit' => $tweet));
                     return;
                 }
 
                 // @todo: update this to process tweet as HTML if required by config
-                $that->emit('tweet', array('tweet' => $tweet));
+                $scope->emit('tweet', array('tweet' => $tweet));
             });
         });
-        $request->on('end', function ($error) use ($that) {
-            $that->emit('error', array('error' => $error));
+
+        $request->on('headers-written', function ($that) use ($postData) {
+            $that->write(implode('&', $postData));
         });
 
-        $this->_request = $request;
+        $request->on('error', function () {
+            die(var_dump(func_get_args()));
+        });
+
+        $request->on('end', function ($error) use ($scope) {
+            $scope->emit('error', array('error' => $error));
+        });
+
+        $this->request = $request;
+    }
+
+    /**
+     * Generate Authorization header
+     *
+     * @param array $params Parameters we're sending
+     *
+     * @return string
+     */
+    private function generateHeader(array $params = null)
+    {
+        $consumer = new \JacobKiers\OAuth\Consumer\Consumer($this->config['twitter']['consumer_key'], $this->config['twitter']['consumer_secret']);
+        $token    = new \JacobKiers\OAuth\Token\Token($this->config['twitter']['access_token'], $this->config['twitter']['access_token_secret']);
+
+        $oauthRequest = \JacobKiers\OAuth\Request\Request::fromConsumerAndToken($consumer, $token, self::HTTP_METHOD, self::FILTER_URL, $params);
+        $oauthRequest->signRequest(new \JacobKiers\OAuth\SignatureMethod\HmacSha1(), $consumer, $token);
+
+        return trim(substr($oauthRequest->toHeader(), 15));
     }
 }

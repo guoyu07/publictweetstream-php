@@ -1,8 +1,9 @@
 {
     "require": {
-        "react/react": "0.2.*",
+        "jacobkiers/oauth": "1.0.*",
+        "react/http-client": "0.3.*",
         "symfony/config": "2.1.*",
-        "symfony/yaml": "2.1.x"
+        "symfony/yaml": "2.3.7"
     },
     "autoload": {
         "psr-0": {
